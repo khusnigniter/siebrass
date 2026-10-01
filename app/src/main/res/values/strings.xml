@@ -1,0 +1,12 @@
+<resources>
+    <string name="app_name">SiEbrass</string>
+    <string name="school_fullname">SD Brawijaya Smart School</string>
+    <string name="school_tagline">Sistem Informasi &amp; Manajemen Sekolah</string>
+    <string name="default_url">https://app.sdbss.sch.id</string>
+    <string name="channel_announcements_name">Pengumuman Sekolah</string>
+    <string name="channel_announcements_desc">Notifikasi pengumuman resmi dan informasi akademik SD Brawijaya Smart School</string>
+    <string name="channel_attendance_name">Presensi &amp; Kegiatan Siswa</string>
+    <string name="channel_attendance_desc">Informasi kehadiran, jadwal, dan tugas siswa</string>
+    <string name="channel_updates_name">Pembaruan Aplikasi</string>
+    <string name="channel_updates_desc">Notifikasi ketersediaan versi terbaru SiEbrass</string>
+</resources>

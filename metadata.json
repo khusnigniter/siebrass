@@ -1,0 +1,6 @@
+{
+  "name": "SiEbrass",
+  "description": "Sistem Informasi dan Manajemen Sekolah SD Brawijaya Smart School (SDBSS) dengan WebView responsif, notifikasi push, dan pembaruan otomatis.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

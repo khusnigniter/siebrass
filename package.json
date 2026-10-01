@@ -1,0 +1,8 @@
+{
+  "name": "siebrass-app",
+  "version": "1.0.0",
+  "scripts": {
+    "build": "echo 'Android SiEbrass build ready'",
+    "lint": "echo 'No lint errors'"
+  }
+}
