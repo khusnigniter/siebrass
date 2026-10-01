@@ -98,41 +98,45 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     snackbarHost = { SnackbarHost(snackbarHostState) },
                     topBar = {
-                        SiEbrassTopBar(
-                            currentTab = currentTab,
-                            webState = webState,
-                            unreadCount = unreadCount,
-                            onReload = { viewModel.reloadWebview() },
-                            onToggleDesktop = { viewModel.toggleDesktopMode() },
-                            onMarkAllRead = { viewModel.markAllNotifAsRead() },
-                            onTestNotification = { viewModel.sendTestPushNotification(NotificationCategory.ANNOUNCEMENT) },
-                            onCheckUpdate = { viewModel.checkForUpdates(userInitiated = true) },
-                            onOpenExternal = {
-                                try {
-                                    val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(webState.currentUrl))
-                                    context.startActivity(browserIntent)
-                                } catch (e: Exception) {
-                                    Toast.makeText(context, "Tidak dapat membuka peramban luar", Toast.LENGTH_SHORT).show()
-                                }
-                            },
-                            onShareUrl = {
-                                try {
-                                    val sendIntent = Intent().apply {
-                                        action = Intent.ACTION_SEND
-                                        putExtra(Intent.EXTRA_TEXT, webState.currentUrl)
-                                        type = "text/plain"
+                        if (!webState.isFullscreen || currentTab != AppTab.PORTAL) {
+                            SiEbrassTopBar(
+                                currentTab = currentTab,
+                                webState = webState,
+                                unreadCount = unreadCount,
+                                onReload = { viewModel.reloadWebview() },
+                                onToggleDesktop = { viewModel.toggleDesktopMode() },
+                                onMarkAllRead = { viewModel.markAllNotifAsRead() },
+                                onTestNotification = { viewModel.sendTestPushNotification(NotificationCategory.ANNOUNCEMENT) },
+                                onCheckUpdate = { viewModel.checkForUpdates(userInitiated = true) },
+                                onOpenExternal = {
+                                    try {
+                                        val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(webState.currentUrl))
+                                        context.startActivity(browserIntent)
+                                    } catch (e: Exception) {
+                                        Toast.makeText(context, "Tidak dapat membuka peramban luar", Toast.LENGTH_SHORT).show()
                                     }
-                                    context.startActivity(Intent.createChooser(sendIntent, "Bagikan Tautan SiEbrass"))
-                                } catch (e: Exception) {}
-                            }
-                        )
+                                },
+                                onShareUrl = {
+                                    try {
+                                        val sendIntent = Intent().apply {
+                                            action = Intent.ACTION_SEND
+                                            putExtra(Intent.EXTRA_TEXT, webState.currentUrl)
+                                            type = "text/plain"
+                                        }
+                                        context.startActivity(Intent.createChooser(sendIntent, "Bagikan Tautan SiEbrass"))
+                                    } catch (e: Exception) {}
+                                }
+                            )
+                        }
                     },
                     bottomBar = {
-                        SiEbrassBottomBar(
-                            currentTab = currentTab,
-                            unreadNotifCount = unreadCount,
-                            onTabSelected = { tab -> viewModel.selectTab(tab) }
-                        )
+                        if (!webState.isFullscreen || currentTab != AppTab.PORTAL) {
+                            SiEbrassBottomBar(
+                                currentTab = currentTab,
+                                unreadNotifCount = unreadCount,
+                                onTabSelected = { tab -> viewModel.selectTab(tab) }
+                            )
+                        }
                     }
                 ) { innerPadding ->
                     Box(
@@ -155,6 +159,8 @@ class MainActivity : ComponentActivity() {
                                         onError = { viewModel.onWebError() },
                                         onHomeClick = { viewModel.resetToHome() },
                                         onToggleDesktop = { viewModel.toggleDesktopMode() },
+                                        onSetViewportMode = { viewModel.setViewportMode(it) },
+                                        onToggleFullscreen = { viewModel.toggleFullscreen() },
                                         onZoomChange = { viewModel.setTextZoom(it) },
                                         onOpenShortcuts = { viewModel.selectTab(AppTab.SHORTCUTS) }
                                     )

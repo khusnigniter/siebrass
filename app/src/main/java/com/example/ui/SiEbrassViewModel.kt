@@ -31,6 +31,13 @@ enum class AppTab(val title: String) {
     SETTINGS("Pengaturan")
 }
 
+enum class ViewportMode(val title: String, val targetWidth: Int?) {
+    AUTO("Responsif Otomatis", null),
+    MOBILE("Ponsel (390px)", 390),
+    TABLET("Tablet (800px)", 800),
+    DESKTOP("Desktop (1280px)", 1280)
+}
+
 data class WebviewUiState(
     val currentUrl: String = "https://app.sdbss.sch.id",
     val title: String = "SiEbrass - SD Brawijaya Smart School",
@@ -40,6 +47,8 @@ data class WebviewUiState(
     val canGoForward: Boolean = false,
     val isOffline: Boolean = false,
     val isDesktopMode: Boolean = false,
+    val viewportMode: ViewportMode = ViewportMode.AUTO,
+    val isFullscreen: Boolean = false,
     val textZoom: Int = 100,
     val refreshCounter: Int = 0,
     val clearCacheCounter: Int = 0
@@ -191,10 +200,34 @@ class SiEbrassViewModel(application: Application) : AndroidViewModel(application
 
     fun toggleDesktopMode() {
         val newMode = !_webState.value.isDesktopMode
-        _webState.value = _webState.value.copy(isDesktopMode = newMode)
+        val newViewport = if (newMode) ViewportMode.DESKTOP else ViewportMode.MOBILE
+        _webState.value = _webState.value.copy(
+            isDesktopMode = newMode,
+            viewportMode = newViewport
+        )
         reloadWebview()
         viewModelScope.launch {
-            _toastEvent.emit(if (newMode) "Mode Desktop Aktif" else "Mode Ponsel Aktif")
+            _toastEvent.emit(if (newMode) "Mode Desktop Aktif (Viewport 1280px)" else "Mode Ponsel Aktif (Viewport Responsif)")
+        }
+    }
+
+    fun setViewportMode(mode: ViewportMode) {
+        val isDesktop = mode == ViewportMode.DESKTOP
+        _webState.value = _webState.value.copy(
+            viewportMode = mode,
+            isDesktopMode = isDesktop
+        )
+        reloadWebview()
+        viewModelScope.launch {
+            _toastEvent.emit("Viewport diubah ke: ${mode.title}")
+        }
+    }
+
+    fun toggleFullscreen() {
+        val newFs = !_webState.value.isFullscreen
+        _webState.value = _webState.value.copy(isFullscreen = newFs)
+        viewModelScope.launch {
+            _toastEvent.emit(if (newFs) "Layar Penuh Aktif" else "Layar Penuh Dinonaktifkan")
         }
     }
 

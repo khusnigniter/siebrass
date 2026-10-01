@@ -7,6 +7,7 @@ import android.content.Intent
 import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Build
+import android.view.View
 import android.view.ViewGroup
 import android.webkit.CookieManager
 import android.webkit.ValueCallback
@@ -23,8 +24,10 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -34,18 +37,30 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Computer
+import androidx.compose.material.icons.filled.Fullscreen
+import androidx.compose.material.icons.filled.FullscreenExit
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Tablet
 import androidx.compose.material.icons.filled.ZoomIn
 import androidx.compose.material.icons.filled.ZoomOut
+import androidx.compose.material3.Badge
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -62,6 +77,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -69,11 +85,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import com.example.ui.ViewportMode
 import com.example.ui.WebviewUiState
 import com.example.ui.components.OfflineErrorView
 
 private const val DESKTOP_USER_AGENT =
-    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
 
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
@@ -87,6 +104,8 @@ fun WebViewScreen(
     onError: () -> Unit,
     onHomeClick: () -> Unit,
     onToggleDesktop: () -> Unit,
+    onSetViewportMode: (ViewportMode) -> Unit = {},
+    onToggleFullscreen: () -> Unit = {},
     onZoomChange: (Int) -> Unit,
     onOpenShortcuts: () -> Unit
 ) {
@@ -94,7 +113,7 @@ fun WebViewScreen(
     var webViewInstance by remember { mutableStateOf<WebView?>(null) }
     var filePathCallback by remember { mutableStateOf<ValueCallback<Array<Uri>>?>(null) }
 
-    // File Chooser Launcher for uploads (assignments, profile picture, homework documents)
+    // File Chooser Launcher for uploads (school assignments, photos, documents)
     val fileChooserLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
@@ -134,22 +153,73 @@ fun WebViewScreen(
         webViewInstance?.settings?.textZoom = webState.textZoom
     }
 
-    // Handle desktop mode toggle
-    LaunchedEffect(webState.isDesktopMode) {
+    // Injects viewport scaling script based on ViewportMode
+    fun applyViewportScaling(wv: WebView, mode: ViewportMode) {
+        val metaTagScript = when (mode) {
+            ViewportMode.DESKTOP -> {
+                """
+                (function() {
+                    var meta = document.querySelector('meta[name="viewport"]');
+                    if (!meta) {
+                        meta = document.createElement('meta');
+                        meta.name = 'viewport';
+                        document.head.appendChild(meta);
+                    }
+                    meta.content = 'width=1280, initial-scale=0.6, maximum-scale=3.0, user-scalable=yes';
+                    document.body.style.minWidth = '1280px';
+                })();
+                """.trimIndent()
+            }
+            ViewportMode.TABLET -> {
+                """
+                (function() {
+                    var meta = document.querySelector('meta[name="viewport"]');
+                    if (!meta) {
+                        meta = document.createElement('meta');
+                        meta.name = 'viewport';
+                        document.head.appendChild(meta);
+                    }
+                    meta.content = 'width=800, initial-scale=0.85, maximum-scale=3.0, user-scalable=yes';
+                    document.body.style.minWidth = '800px';
+                })();
+                """.trimIndent()
+            }
+            else -> {
+                """
+                (function() {
+                    var meta = document.querySelector('meta[name="viewport"]');
+                    if (!meta) {
+                        meta = document.createElement('meta');
+                        meta.name = 'viewport';
+                        document.head.appendChild(meta);
+                    }
+                    meta.content = 'width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes';
+                    document.body.style.minWidth = 'unset';
+                })();
+                """.trimIndent()
+            }
+        }
+        wv.evaluateJavascript(metaTagScript, null)
+    }
+
+    // Handle viewport mode change
+    LaunchedEffect(webState.viewportMode, webState.isDesktopMode) {
         webViewInstance?.let { wv ->
-            if (webState.isDesktopMode) {
+            val isDesktop = webState.viewportMode == ViewportMode.DESKTOP || webState.isDesktopMode
+            if (isDesktop) {
                 wv.settings.userAgentString = DESKTOP_USER_AGENT
                 wv.settings.useWideViewPort = true
                 wv.settings.loadWithOverviewMode = true
             } else {
-                wv.settings.userAgentString = null // Use default mobile user agent
+                wv.settings.userAgentString = null // Standard mobile user agent
                 wv.settings.useWideViewPort = true
                 wv.settings.loadWithOverviewMode = true
             }
+            applyViewportScaling(wv, webState.viewportMode)
         }
     }
 
-    Box(
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
@@ -176,8 +246,102 @@ fun WebViewScreen(
                     )
                 }
 
+                // Viewport & Scale Selector Bar
+                Surface(
+                    tonalElevation = 1.dp,
+                    color = MaterialTheme.colorScheme.surface,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState())
+                            .padding(horizontal = 10.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        // SSL Lock & Portal Host Badge
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color(0xFFE8F5E9),
+                            modifier = Modifier.padding(end = 4.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Lock,
+                                    contentDescription = "SSL Aman",
+                                    tint = Color(0xFF2E7D32),
+                                    modifier = Modifier.size(12.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "sdbss.sch.id",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color(0xFF2E7D32)
+                                )
+                            }
+                        }
+
+                        // Viewport Selector Chips
+                        val modes = listOf(
+                            Triple(ViewportMode.AUTO, "Auto", Icons.Default.AutoAwesome),
+                            Triple(ViewportMode.MOBILE, "Mobile", Icons.Default.PhoneAndroid),
+                            Triple(ViewportMode.TABLET, "Tablet", Icons.Default.Tablet),
+                            Triple(ViewportMode.DESKTOP, "Desktop", Icons.Default.Computer)
+                        )
+
+                        modes.forEach { (mode, label, icon) ->
+                            val isSelected = webState.viewportMode == mode
+                            FilterChip(
+                                selected = isSelected,
+                                onClick = { onSetViewportMode(mode) },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = icon,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                },
+                                label = {
+                                    Text(
+                                        text = label,
+                                        fontSize = 11.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                    )
+                                },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                    selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                ),
+                                modifier = Modifier.testTag("viewport_chip_${label.lowercase()}")
+                            )
+                        }
+
+                        // Fullscreen Toggle Icon
+                        IconButton(
+                            onClick = onToggleFullscreen,
+                            modifier = Modifier.size(32.dp).testTag("fullscreen_toggle_button")
+                        ) {
+                            Icon(
+                                imageVector = if (webState.isFullscreen) Icons.Default.FullscreenExit else Icons.Default.Fullscreen,
+                                contentDescription = "Layar Penuh",
+                                tint = if (webState.isFullscreen) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                }
+
                 // Main AndroidView hosting the responsive WebView
-                Box(modifier = Modifier.weight(1f)) {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                ) {
                     AndroidView(
                         modifier = Modifier
                             .fillMaxSize()
@@ -188,6 +352,9 @@ fun WebViewScreen(
                                     ViewGroup.LayoutParams.MATCH_PARENT,
                                     ViewGroup.LayoutParams.MATCH_PARENT
                                 )
+
+                                // Hardware acceleration for smooth canvas & Flutter web rendering
+                                setLayerType(View.LAYER_TYPE_HARDWARE, null)
 
                                 settings.apply {
                                     javaScriptEnabled = true
@@ -203,8 +370,9 @@ fun WebViewScreen(
                                     mediaPlaybackRequiresUserGesture = false
                                     mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
                                     cacheMode = WebSettings.LOAD_DEFAULT
+                                    layoutAlgorithm = WebSettings.LayoutAlgorithm.TEXT_AUTOSIZING
                                     textZoom = webState.textZoom
-                                    if (webState.isDesktopMode) {
+                                    if (webState.viewportMode == ViewportMode.DESKTOP || webState.isDesktopMode) {
                                         userAgentString = DESKTOP_USER_AGENT
                                     }
                                 }
@@ -253,13 +421,12 @@ fun WebViewScreen(
                                                 true
                                             }
 
-                                            // Direct download of APK or documents
+                                            // Direct download of documents
                                             url.endsWith(".apk") || url.endsWith(".pdf") || url.endsWith(".xlsx") || url.endsWith(".docx") -> {
                                                 try {
                                                     val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
                                                     ctx.startActivity(intent)
                                                 } catch (e: Exception) {
-                                                    // Allow webview to handle
                                                     return false
                                                 }
                                                 true
@@ -285,6 +452,9 @@ fun WebViewScreen(
                                         url?.let { onUrlChange(it) }
                                         view?.title?.let { onTitleChange(it) }
                                         onNavigationStateChange(canGoBack(), canGoForward())
+
+                                        // Apply scaling & viewport meta injection on load finish
+                                        view?.let { applyViewportScaling(it, webState.viewportMode) }
                                     }
 
                                     override fun onReceivedError(
@@ -451,9 +621,9 @@ fun WebViewScreen(
                                 modifier = Modifier.size(34.dp).testTag("webview_mode_toggle_bottom")
                             ) {
                                 Icon(
-                                    imageVector = if (webState.isDesktopMode) Icons.Default.Computer else Icons.Default.PhoneAndroid,
+                                    imageVector = if (webState.isDesktopMode || webState.viewportMode == ViewportMode.DESKTOP) Icons.Default.Computer else Icons.Default.PhoneAndroid,
                                     contentDescription = "Mode Tampilan",
-                                    tint = if (webState.isDesktopMode) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.primary,
+                                    tint = if (webState.isDesktopMode || webState.viewportMode == ViewportMode.DESKTOP) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.primary,
                                     modifier = Modifier.size(18.dp)
                                 )
                             }
